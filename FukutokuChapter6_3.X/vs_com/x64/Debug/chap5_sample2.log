@@ -1,7 +1,0 @@
-﻿  chap5_sample2.cpp
-  cserial.cpp
-C:\Users\Daichi\Google ドライブ\新入生用ファイル\dsPIC Learning program_2020.zip (Unzipped Files)\dsPIC Learning program_2020\Learning program\chapter05_prac\chap5_sample2\cserial.cpp(714,19): warning C4477: 'fwscanf_s' : 書式文字列 '%s' には、型 'unsigned int' の引数が必要ですが、可変個引数 2 は型 'unsigned __int64' です
-C:\Users\Daichi\Google ドライブ\新入生用ファイル\dsPIC Learning program_2020.zip (Unzipped Files)\dsPIC Learning program_2020\Learning program\chapter05_prac\chap5_sample2\cserial.cpp(714,19): message : この引数はバッファー サイズとして使用されます
-  コードを生成中...
-  LINK : 前回のインクリメンタル リンクで C:\Users\Daichi\Google ドライブ\新入生用ファイル\dsPIC Learning program_2020.zip (Unzipped Files)\dsPIC Learning program_2020\Learning program\chapter05_prac\chap5_sample2\x64\Debug\chap5_sample2.exe が見つからなかったか、ビルドされませんでした。フル リンクを行います。
-  chap5_sample2.vcxproj -> C:\Users\Daichi\Google ドライブ\新入生用ファイル\dsPIC Learning program_2020.zip (Unzipped Files)\dsPIC Learning program_2020\Learning program\chapter05_prac\chap5_sample2\x64\Debug\chap5_sample2.exe
