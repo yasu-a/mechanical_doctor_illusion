@@ -1,0 +1,4 @@
+C:\Users\minami\Google ドライブ\新入生用ファイル\dsPIC Learning program_2020.zip (Unzipped Files)\dsPIC Learning program_2020\Learning program\chapter05_prac\chap5_sample2\x64\Debug\chap5_sample2.exe
+C:\Users\minami\Google ドライブ\新入生用ファイル\dsPIC Learning program_2020.zip (Unzipped Files)\dsPIC Learning program_2020\Learning program\chapter05_prac\chap5_sample2\x64\Debug\chap5_sample2.pdb
+C:\Users\Daichi\Google ドライブ\新入生用ファイル\dsPIC Learning program_2020.zip (Unzipped Files)\dsPIC Learning program_2020\Learning program\chapter05_prac\chap5_sample2\x64\Debug\chap5_sample2.exe
+C:\Users\Daichi\Google ドライブ\新入生用ファイル\dsPIC Learning program_2020.zip (Unzipped Files)\dsPIC Learning program_2020\Learning program\chapter05_prac\chap5_sample2\x64\Debug\chap5_sample2.pdb
