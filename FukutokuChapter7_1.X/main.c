@@ -20,6 +20,7 @@ void setup_clock(void) {
     CLKDIVbits.PLLPRE = 0; // PLLPRE 2
     CLKDIVbits.PLLPOST = 0; // PLLPOST 2
     PLLFBD = CLK_PLL_SCALE - 2;
+    RCONbits.SWDTEN = 0;
 }
 
 #define CLK_FREQ ((uint64_t)((7370000ULL * (uint64_t) CLK_PLL_SCALE) >> 2))
@@ -118,6 +119,7 @@ timestamp_t millis(void) {
  */
 
 void setup_interruption(void);
+void setup_adc(void);
 
 void setup(void) {
     setup_clock();
@@ -132,6 +134,7 @@ void setup(void) {
     AD1PCFGL = 0xfffc; // use RB1, RB0 as analong inputs
 
     setup_interruption();
+    setup_adc();
 }
 
 /* 
@@ -145,11 +148,10 @@ struct {
 
 void _ISR _T5Interrupt(void) {
     _T5IF = 0;
-    _LATB12 = ~_LATB12;
 }
 
 void set_counter_thresh(uint16_t interval_ms) {
-    uint32_t value = INST_FREQ * (uint64_t)interval_ms / 2ULL / 1000ULL;
+    uint32_t value = INST_FREQ * (uint64_t) interval_ms / 2ULL / 1000ULL;
     PR4 = value & 0xffff;
     value >>= 16;
     PR5 = value & 0xffff;
@@ -158,53 +160,39 @@ void set_counter_thresh(uint16_t interval_ms) {
 void update_interval() {
     T4CONbits.TON = 0;
     _T5IE = 0;
-    
+
     TMR5HLD = 0;
     TMR4 = 0;
     set_counter_thresh(state.interval_ms);
-    
+
     _T5IE = 1;
     T4CONbits.TON = 1;
 }
 
 void setup_interruption(void) {
-    /* T4: interruption timer for led blink */
-    T4CONbits.TON = 1;
-    T4CONbits.TCS = 0; // internal
-    T4CONbits.TCKPS = 0; // x1
-    T4CONbits.T32 = 1;
-    update_interval();
-    _T5IF = 0;
-    _T5IE = 1;
+}
+
+void setup_adc(void) {
+    // ADC with single channel, manual sampling, auto triggering conversion,
+    //          and 12bit resolution
+    AD1PCFGL = 0xFFFC; // mark AN0, AN1 as analog input
+    AD1CON1bits.SSRC = 0b111; // finish sampling by internal counter
+    AD1CON1bits.AD12B = 1;
+    AD1CON2 = 0; // default configuration
+    AD1CON3bits.ADCS = 2; // T_ad = (ADCS + 1) * T_cy = T_cy * 3 (12bit@M=33, 30.401250MHz)
+    AD1CON3bits.SAMC = 3; // T_samp = T_ad * SAMC = T_ad * 3 (12bit@M=33, 30.401250MHz)
+    AD1CHS0bits.CH0SA = 0; // input channel selection
+    AD1CON1bits.ADON = 1; // enable ADC
 }
 
 int main() {
     setup();
-    
-    for (;;) {
-        // set interval from serial
-        if (serial_get_byte() != 0x55) continue;
-        if (serial_get_byte() != 0xaa) continue;
-        uint8_t lower = serial_get_byte();
-        uint8_t higher = serial_get_byte();
-        uint16_t word = (higher << 8) | lower;
-        state.interval_ms = word;
-        update_interval();
-        
-        // measure interval and write result to serial
-        int initial = _LATB12;
-        while (_LATB12 == initial);
-        timestamp_t ts = micros();
-        while (_LATB12 != initial);
-        while (_LATB12 == initial);
-        timestamp_t te = micros();
-        timestamp_t dt = te - ts;
 
-        serial_put_byte(0x55);
-        serial_put_byte(0xaa);
-        serial_put_byte((dt >> 24) & 0xff);
-        serial_put_byte((dt >> 16) & 0xff);
-        serial_put_byte((dt >> 8) & 0xff);
-        serial_put_byte((dt >> 0) & 0xff);
+    for (;;) {
+        AD1CON1bits.SAMP = 1;
+        while (!AD1CON1bits.DONE);
+        AD1CON1bits.DONE = 0;
+        const uint16_t data = ADC1BUF0;
+        LATB = (data << 4) & 0xF000;
     }
 }
