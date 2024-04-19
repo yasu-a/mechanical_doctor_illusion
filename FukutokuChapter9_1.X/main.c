@@ -121,6 +121,10 @@ void delay_us(unsigned int us) {
 /* 
  * Setup
  */
+
+static uint32_t t2_interval_us;
+static uint32_t t3_per_ms;
+
 void setup(void) {
     setup_clock();
     setup_serial();
@@ -131,11 +135,19 @@ void setup(void) {
     TRISA = 0x001f; // 1: input, 0: output
     TRISB = 0x0203;
 
-    /* setup timer */
+    /* setup timer for PWM generator */
     T2CONbits.TCS = 0; // internal
     T2CONbits.TCKPS = 1; // x8
-    PR2 = INST_FREQ * 10UL / 1000UL / 8UL;
+    t2_interval_us = 10UL * 1000UL;
+    PR2 = INST_FREQ * t2_interval_us / 1000UL / 1000UL / 8UL;
     T2CONbits.TON = 1;
+
+    /* setup tiemr for capturing duty ratio */
+    T3CONbits.TCS = 0; // internal
+    T3CONbits.TCKPS = 1; // x8
+    t3_per_ms = INST_FREQ / 1000UL / 8UL;
+    PR3 = 0xffff;
+    T3CONbits.TON = 1;
 
     /* setup output compare */
     OC1CONbits.OCTSEL = 0; // Timer2 -> OC1
@@ -148,45 +160,38 @@ void setup(void) {
     OC2RS = 0;
     _RP13R = 19; // OC2 -> RP13
 
-    OC3CONbits.OCTSEL = 0; // Timer2 -> OC3
-    OC3CONbits.OCM = 6; // PWM mode
-    OC3RS = 0;
-    _RP14R = 20; // OC3 -> RP14
-
-    OC4CONbits.OCTSEL = 0; // Timer2 -> OC3
-    OC4CONbits.OCM = 6; // PWM mode
-    OC4RS = 0;
-    _RP15R = 21; // OC4 -> RP15
-
-    // ADC with single channel, manual sampling, auto triggering conversion,
-    //          and 10bit resolution
-    AD1PCFGL = 0xFFFC; // mark AN0, AN1 as analog input
-    AD1CON1bits.SSRC = 0b111; // finish sampling by internal counter
-    AD1CON2 = 0; // default configuration
-    AD1CON3bits.ADCS = 2; // T_ad = (ADCS + 1) * T_cy = T_cy * 3 (12bit@M=33, 30.401250MHz)
-    AD1CON3bits.SAMC = 3; // T_samp = T_ad * SAMC = T_ad * 3 (12bit@M=33, 30.401250MHz)
-    AD1CHS0bits.CH0SA = 0; // input channel selection
-    AD1CON1bits.ADON = 1; // enable ADC
+    /* setup input capture */
+    IC2CONbits.ICTMR = 0; // Timer3 -> timer source
+    IC2CONbits.ICI = 0; // interrupt every event
+    IC2CONbits.ICM = 3; // rising edge
+    _IC2R = 12; // RP12 -> IC2
+    _IC2IF = 0;
+    _IC2IE = 1;
 }
 
 /* 
  * (User)
  */
 
-uint16_t analog_read(int index) {
-    switch (index) {
-        case 0:
-            AD1CHS0bits.CH0SA = 0;
-            break;
-        case 1:
-            AD1CHS0bits.CH0SA = 1;
-            break;
+volatile uint16_t t_duty = 0;
+
+void _ISR _IC2Interrupt(void) {
+    static uint16_t t_rise = 0;
+    static uint16_t t_fall = 0;
+    if (IC2CONbits.ICM == 3) { // rising edge
+        t_rise = IC2BUF;
+        IC2CONbits.ICM = 2; // falling edge
+    } else { // falling edge
+        t_fall = IC2BUF;
+        IC2CONbits.ICM = 3; // rising edge
+        if (t_rise > t_fall) {
+            t_duty = PR3 - t_rise + t_fall + 1; // XXX: why plus 1???
+        } else {
+            t_duty = t_fall - t_rise;
+        }
     }
-    AD1CON1bits.SAMP = 1;
-    while (!AD1CON1bits.DONE);
-    AD1CON1bits.DONE = 0;
-    const uint16_t value = ADC1BUF0;
-    return value;
+    _LATB15 = ~_LATB15;
+    _IC2IF = 0;
 }
 
 int write_pwm(int i, float duty_ratio) {
@@ -210,27 +215,25 @@ int write_pwm(int i, float duty_ratio) {
     return 0;
 }
 
-float serial_get_fixed_decimal() {
-    uint16_t value = (uint16_t) serial_get_byte() << 8 | (uint16_t) serial_get_byte();
-    return (float) value / (float) 65535;
-}
-
 int main(void) {
     setup();
 
     printf("HELLO!\n");
+    write_pwm(1, 0.123456);
 
     for (;;) {
+        uint32_t t_duty_in_us = (uint32_t) t_duty * 1000UL / t3_per_ms;
+        printf("PT %u %lu %lu[us]/%lu[us]=%.1f[%]\n", t_duty, t3_per_ms, t_duty_in_us, t2_interval_us, (float) t_duty_in_us / (float) t2_interval_us * 100.0f);
         delay_ms(100);
-        if (serial_get_byte() != 0xaa) continue;
-        if (serial_get_byte() != 0x55) continue;
-        int index = (int) serial_get_byte();
-        float duty_ratio = serial_get_fixed_decimal();
-        int result = write_pwm(index, duty_ratio);
-        if (result < 0) {
-            printf("NG\n");
-        } else {
-            printf("OK %d %f\n", index, duty_ratio);
-        }
+//        if (serial_get_byte() != 0xaa) continue;
+//        if (serial_get_byte() != 0x55) continue;
+//        int index = (int) serial_get_byte();
+//        float duty_ratio = serial_get_fixed_float();
+//        int result = write_pwm(index, duty_ratio);
+//        if (result < 0) {
+//            printf("NG\n");
+//        } else {
+//            printf("OK %d %f\n", index, duty_ratio);
+//        }
     }
 }
